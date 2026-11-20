@@ -3,6 +3,7 @@ import type { Config, PayloadRequest } from 'payload'
 import { describe, expect, it } from 'vitest'
 
 import { mapPrintifyProduct, printifyPlugin, validPrintifySignature, type PrintifyProduct } from '../src'
+import { mergeImageAlt } from '../src/sync'
 import { pushVariantPriceHook } from '../src/prices'
 import { pushVisibilityHook } from '../src/visibility'
 import type { PrintifyPluginOptions, ResolvedPrintifyOptions } from '../src/types'
@@ -59,6 +60,30 @@ describe('mapping', () => {
     expect(m.minPrice).toBe(2500)
     expect(m.images[0]?.isDefault).toBe(true)
     expect(mapPrintifyProduct(tee({ visible: false })).published).toBe(false)
+  })
+})
+
+describe('image alt text', () => {
+  const front = 'https://images-api.printify.com/mockup/front.jpg'
+  const back = 'https://images-api.printify.com/mockup/back.jpg'
+  const mapped = () => mapPrintifyProduct(tee()).images
+
+  it('gives a new image the product title', () => {
+    expect(mergeImageAlt(mapped(), undefined).map((i) => i.alt)).toEqual(['Leopard Gecko Tee', 'Leopard Gecko Tee'])
+    expect(mergeImageAlt(mapped(), [{ url: 'https://example.test/other.jpg', alt: 'Other' }]).map((i) => i.alt)).toEqual(['Leopard Gecko Tee', 'Leopard Gecko Tee'])
+  })
+
+  it('keeps an alt a curator wrote through a resync, even when the title changes', () => {
+    const stored = [{ url: front, alt: 'A gecko on a black tee, facing left' }, { url: back, alt: 'Leopard Gecko Tee' }]
+    const out = mergeImageAlt(mapPrintifyProduct(tee({ title: 'Gecko Tee v2' })).images, stored)
+    expect(out.find((i) => i.url === front)?.alt).toBe('A gecko on a black tee, facing left')
+    expect(out.find((i) => i.url === back)?.alt).toBe('Leopard Gecko Tee')
+  })
+
+  it('refills an alt that was emptied', () => {
+    const out = mergeImageAlt(mapped(), [{ url: front, alt: '' }, { url: back, alt: '   ' }])
+    expect(out.map((i) => i.alt)).toEqual(['Leopard Gecko Tee', 'Leopard Gecko Tee'])
+    expect(mergeImageAlt(mapped(), [{ url: front, alt: null }]).map((i) => i.alt)).toEqual(['Leopard Gecko Tee', 'Leopard Gecko Tee'])
   })
 })
 

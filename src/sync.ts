@@ -27,6 +27,18 @@ export const slugify = (s: string) =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 80) || 'product'
 
+type StoredImage = { url?: string | null; alt?: string | null }
+
+/**
+ * Put freshly mapped images onto the stored ones without losing alt text written in Payload.
+ * An image is matched by its URL. A stored alt that has text is kept; an empty or missing one
+ * is filled with the title the mapping gave it.
+ */
+export function mergeImageAlt<T extends { url: string; alt: string }>(images: T[], stored: StoredImage[] | null | undefined): T[] {
+  const kept = new Map((stored ?? []).filter((s) => s.url && s.alt?.trim()).map((s) => [s.url, s.alt as string]))
+  return images.map((img) => (kept.has(img.url) ? { ...img, alt: kept.get(img.url)! } : img))
+}
+
 /** The parts of a Printify product a store keeps (pure). Prices stay in cents. */
 export function mapPrintifyProduct(p: PrintifyProduct) {
   const enabled = p.variants.filter((v) => v.is_enabled)
@@ -108,7 +120,7 @@ export async function syncPrintifyProduct(payload: Payload, opts: ResolvedPrinti
     slug,
     generateSlug: false,
     description: m.description,
-    images: m.images,
+    images: mergeImageAlt(m.images, existing?.images as StoredImage[] | undefined),
     enableVariants: m.options.length > 0,
     variantTypes: typeIds,
     [`${price}Enabled`]: m.minPrice != null,

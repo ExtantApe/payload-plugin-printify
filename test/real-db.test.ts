@@ -206,6 +206,27 @@ async function unknownOrder(s: Store, item: { product: string; variant: string }
   return doc
 }
 
+describe('image alt text, on a real database', () => {
+  const withImage = (title: string): PrintifyProduct => ({
+    ...product('pf-alt-1', 4001, title),
+    images: [{ src: 'https://images-api.printify.com/mockup/alt.jpg', variant_ids: [4001], position: 'front', is_default: true }],
+  })
+  const altOf = async (id: string) => ((await one.payload.findByID({ collection: 'products', id, depth: 0, draft: true })) as Doc).images as Doc[]
+  const setAlt = async (id: string, alt: string) =>
+    one.payload.update({ collection: 'products', id, data: { images: (await altOf(id)).map((i) => ({ ...i, alt })) } as never, draft: true })
+
+  it('fills alt, keeps a curator’s alt through resyncs, and refills it when emptied', async () => {
+    const { id } = await syncPrintifyProduct(one.payload, one.opts, null, withImage('Alt Mug'))
+    expect((await altOf(id))[0]!.alt).toBe('Alt Mug')
+    await setAlt(id, 'A white mug with a gecko')
+    await syncPrintifyProduct(one.payload, one.opts, null, withImage('Alt Mug 2'))
+    expect((await altOf(id))[0]!.alt).toBe('A white mug with a gecko')
+    await setAlt(id, '')
+    await syncPrintifyProduct(one.payload, one.opts, null, withImage('Alt Mug 2'))
+    expect((await altOf(id))[0]!.alt).toBe('Alt Mug 2')
+  })
+})
+
 let mongo: MongoMemoryReplSet
 let one: Store
 let item: { product: string; variant: string }

@@ -65,6 +65,7 @@ export const productFromPriceHook =
     if (context.printify || !opts.enabled || doc.printify?.variantId == null || doc[field] === previousDoc?.[field]) return doc
     const product = idOf(doc.product)
     const { docs } = await req.payload.find({
+      pagination: false,
       collection: opts.collections.variants as CollectionSlug,
       where: { and: [{ product: { equals: product } }, { _status: { equals: 'published' } }] },
       limit: 500,

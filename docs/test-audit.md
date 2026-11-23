@@ -2,6 +2,12 @@
 
 Newest first.
 
+## 2026-11-22: curator alt text (0.2.3)
+
+- Promises: a new image gets the product title as its alt; alt text a curator wrote survives every resync, even when the title changes; an emptied alt is refilled.
+- Covered: `test/plugin.test.ts` and, on a real database, `test/real-db.test.ts`.
+- Gaps skipped (and why): 0.2.3 only changed version numbers.
+
 ## 2026-11-11: real-database tests
 
 Suite: 50 → 74 tests in 5 files. The new file, `test/real-db.test.ts` (22 tests), runs a real Payload 3.92.1 with the official ecommerce plugin and, for tenancy, the official multi-tenant plugin. It uses an in-memory MongoDB 8.2 replica set (`mongodb-memory-server`, `ensureIndexes: true`) and requests go through `handleEndpoints`. Printify is still a fake `fetch`, and nothing reaches it. Products come in through the plugin's own sync. Orders are created through the Local API with made-up data. New dev dependencies, exact-pinned: `@payloadcms/db-mongodb`, `@payloadcms/plugin-ecommerce` and `@payloadcms/plugin-multi-tenant` at 3.92.1, and `mongodb-memory-server` 11.3.0.

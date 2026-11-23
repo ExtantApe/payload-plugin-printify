@@ -31,7 +31,7 @@ export async function claimUnknownOrder(
 ): Promise<{ doc: OrderDoc; fulfillment: Fulfillment } | null> {
   const collection = opts.collections.orders as CollectionSlug
   const where: Where = { and: [{ id: { equals: args.id } }, { 'fulfillment.status': { equals: UNKNOWN_OUTCOME } }, ...(args.also ?? [])] }
-  const doc = (await payload.find({ collection, where, limit: 1, depth: 0, overrideAccess: true, req: args.req })).docs[0] as OrderDoc | undefined
+  const doc = (await payload.find({ pagination: false, collection, where, limit: 1, depth: 0, overrideAccess: true, req: args.req })).docs[0] as OrderDoc | undefined
   if (!doc) return null
   const fulfillment = args.fulfillment({ ...(doc.fulfillment ?? {}) })
   const claimed = await payload.db.updateOne({ collection, where, data: { fulfillment }, req: args.req })

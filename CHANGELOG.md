@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.4 (2026-11-25)
 
 - **Security: the order-recording write no longer leaves `printify: true` on the caller's request.** Payload merges a nested call's `context` into the request it is given and leaves it there. After the plugin recorded a paid order's Printify result, every later write on the same request skipped the plugin's hooks: another paid order on that request was never sent, and a variant price or visibility edit was saved without reaching Printify or the host's `beforePrintifyWrite`. The write now runs on a child request with its own `context`. Reported by Captive Origins (bottle 186, K766).
 - Tested: two new real-database tests that fail on the old code (two orders paid one after another on one request, and a price edit after a paid order on the same request), plus a bulk update paying two orders, which passed before the fix too because the two docs happen to overlap. Full suite (81 tests) twice, typecheck, build and leak check.

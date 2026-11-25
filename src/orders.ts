@@ -1,6 +1,7 @@
 import type { CollectionAfterChangeHook, CollectionSlug, PayloadRequest } from 'payload'
 
 import { clientOf, outcomeUnknown, type PrintifyOrder } from './client'
+import { childReq } from './request'
 import type { ResolvedPrintifyOptions } from './types'
 
 const idOf = (v: unknown) => (v && typeof v === 'object' ? String((v as { id: unknown }).id) : v ? String(v) : '')
@@ -65,7 +66,7 @@ export async function sendPaidOrder(opts: ResolvedPrintifyOptions, doc: Record<s
       id: doc.id,
       data: { fulfillment: written } as never,
       context: { printify: true },
-      req,
+      req: childReq(req),
     })
     return written
   }

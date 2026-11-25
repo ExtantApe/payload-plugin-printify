@@ -4,7 +4,7 @@ import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { ecommercePlugin } from '@payloadcms/plugin-ecommerce'
 import { multiTenantPlugin } from '@payloadcms/plugin-multi-tenant'
 import { MongoMemoryReplSet } from 'mongodb-memory-server'
-import { buildConfig, getPayload, handleEndpoints, type CollectionConfig, type Payload, type PayloadRequest, type Plugin } from 'payload'
+import { buildConfig, createLocalReq, getPayload, handleEndpoints, type CollectionConfig, type Payload, type PayloadRequest, type Plugin } from 'payload'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { printifyPlugin, PrintifySettleError, settleUnknownOrder, syncPrintifyProduct, type PrintifyProduct, type ResolvedPrintifyOptions } from '../src'
@@ -301,6 +301,48 @@ describe('the paid-order hook, on a real database', () => {
     expect(doc.fulfillment.status).toBe('failed')
     expect(doc.fulfillment.error).toContain('Printify 400')
     expect(doc.fulfillment.externalId ?? null).toBeNull()
+  })
+})
+
+describe('one request for several writes (bottle 186)', () => {
+  // Payload merges a nested call's context into the request it is given and runs a bulk update's
+  // docs in parallel on one request. The order-recording write must not leave printify: true there.
+  it('sends every paid order when one request pays them one after another', async () => {
+    const [a, b] = [await order(one, item), await order(one, item)]
+    const before = creates(one.printify).length
+    const req = await createLocalReq({}, one.payload)
+    for (const o of [a, b]) await one.payload.update({ collection: 'orders', id: o.id, data: { status: 'processing' } as never, req })
+    expect(creates(one.printify).length).toBe(before + 2)
+    expect(req.context.printify).toBeUndefined()
+  })
+
+  it('still runs the price guard for a variant edit after a paid order on the same request', async () => {
+    const o = await order(one, item)
+    const req = await createLocalReq({}, one.payload)
+    await one.payload.update({ collection: 'orders', id: o.id, data: { status: 'processing' } as never, req })
+    const saved = { pushPrices: one.opts.pushPrices, guard: one.opts.beforePrintifyWrite }
+    Object.assign(one.opts, {
+      pushPrices: true,
+      beforePrintifyWrite: ({ action }: { action: string }) => {
+        if (action === 'price') throw new Error('Held by the host for review.')
+      },
+    })
+    try {
+      await expect(one.payload.update({ collection: 'variants', id: item.variant, data: { priceInUSD: 1999 } as never, req })).rejects.toThrow()
+    } finally {
+      Object.assign(one.opts, { pushPrices: saved.pushPrices, beforePrintifyWrite: saved.guard })
+    }
+  })
+
+  // Timing decides whether the parallel docs overlap, so this one passed before the fix too. It stays as a guard.
+  it('sends every paid order in a bulk update, where docs run in parallel on one request', async () => {
+    const [a, b] = [await order(one, item), await order(one, item)]
+    const before = creates(one.printify).length
+    const req = await createLocalReq({}, one.payload)
+    await one.payload.update({ collection: 'orders', where: { id: { in: [a.id, b.id] } }, data: { status: 'processing' } as never, req })
+    expect(creates(one.printify).length).toBe(before + 2)
+    expect((await get(one, a.id)).fulfillment.externalId).toBeTruthy()
+    expect((await get(one, b.id)).fulfillment.externalId).toBeTruthy()
   })
 })
 
